@@ -1,0 +1,147 @@
+---
+title: "Grades in Art, Design, and Vocational Degree"
+order: 30
+---
+
+## Intro
+
+Analyzing the Degree dataset
+
+```{r}
+#| label: setup
+knitr::opts_chunk$set(message = FALSE)
+library(tidyverse)
+library(mosaic)
+library(skimr)
+library(crosstable)
+library(ggformula)
+library(supernova)
+```
+
+## Read Data
+
+```{r}
+Degree <- readxl::read_xlsx("../../data/Art, Design, and Vocation are all diff-different.xlsx")
+Degree
+```
+
+## Munging
+
+```{r}
+Degree_modified <- Degree %>%
+  mutate(Gender = as_factor(Gender),
+         Degree = as_factor(Degree))
+Degree_modified
+```
+
+```{r}
+Degree_modified %>% 
+  crosstable(Score ~ Degree) %>% 
+  as_flextable()
+##
+Degree_modified %>% 
+  crosstable(Score ~ Degree + Gender) %>% 
+  as_flextable()
+
+```
+
+```{r}
+Degree_modified %>% 
+  gf_density(~ Score | Degree,
+             colour = ~ Degree, fill = ~ Degree, alpha = 0.3) %>% 
+  gf_fitdistr(dist = "norm") %>% 
+  gf_refine(theme_classic())
+
+Degree_modified %>% 
+  group_by(Degree) %>% 
+  summarize (mean_Score = mean(Score))
+             
+```
+
+Not really Gaussian? Some look ok!!
+
+## Shapiro Test
+
+```{r}
+
+shapiro.test(Degree_modified %>% 
+               filter(Degree == "B.Des") %>% 
+               select(Score) %>%  
+               as_vector()) # Can't handle even single col data frame
+
+shapiro.test(Degree_modified %>% 
+               filter(Degree == "B.Voc") %>% 
+               select(Score) %>%  
+               as_vector()) # Can't handle even single col data frame
+
+shapiro.test(Degree_modified %>% 
+               filter(Degree == "B.FA") %>% 
+               select(Score) %>%  
+               as_vector()) # Can't handle even single col data frame
+
+```
+
+Nothing in SMI is normal, folks.
+
+## Inference
+
+### ANOVA
+
+```{r}
+anova_model <- aov(Score ~ Degree, data = Degree_modified) 
+
+anova_model %>% 
+  supernova::supernova()
+
+
+
+```
+
+ANOVA says the reduction in error Sum of Squares is merely 9.429! The `p.value` is $0.02028$ so there **is** a significant difference in mean academic scores across the three degree awards. The Significance score is a **single star** so this is also not too great a difference.
+
+```{r}
+TukeyHSD(anova_model) %>% broom::tidy()
+
+TukeyHSD(anova_model) %>% 
+  broom::tidy() %>% 
+  gf_errorbar(conf.low + conf.high ~ contrast, color = ~ contrast, width = 0.2, linewidth = 1) %>% 
+  gf_point(estimate ~ contrast) %>% 
+  gf_hline(yintercept = 0, linetype = "dashed") %>% 
+  gf_theme(theme_classic()) %>% 
+  gf_refine(coord_flip())
+
+###
+
+TukeyHSD(anova_model) %>% 
+  ggiraphExtra::ggHSD() %>% 
+  gf_theme(theme_classic()) %>% 
+  gf_theme(theme(axis.text.y = element_text(size = 8, angle = 0)))
+
+```
+
+There seems to be a significant difference between B.Des and B.FA. Poor saps who are doing art. Isn't Design always easier to assess?
+
+### Permutation Test
+
+Just for kicks, a permutation test. Here since there are three groups, we will choose the one metric that tells us if there is a difference between them: the F-statistic.
+
+```{r}
+
+F_stat <- anova_model %>% 
+  supernova::supernova() %>%  pluck(1,6,1) # OK, the F-Statistic
+F_stat
+##
+
+  
+perm_anova_dist <- do(4999) * aov(Score ~ shuffle(Degree), data = Degree_modified) %>% supernova() %>% pluck(1,6,1)  
+
+head(perm_anova_dist)
+
+gf_histogram(~ result, data = perm_anova_dist) %>% 
+  gf_vline(xintercept = ~ F_stat, color = "red") %>% 
+  gf_theme(theme_classic())
+prop(perm_anova_dist$result >= F_stat)
+
+```
+
+The computed `p.value` is 0.027, so there is at least one group that is different in academic grades. The TukeyHSD tells us which one, and at what level of significance.

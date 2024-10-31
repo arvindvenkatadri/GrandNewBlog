@@ -2,9 +2,10 @@
   {
     "listing": "/index.html",
     "items": [
-      "/posts/new-post-0610/index.html",
-      "/posts/post-with-code/index.html",
-      "/posts/welcome/index.html"
+      "/posts/cartoons/index.html",
+      "/posts/arddesignvoc/index.html",
+      "/posts/tips/index.html",
+      "/posts/pocketmoney/index.html"
     ]
   }
 ]

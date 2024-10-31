@@ -1,0 +1,113 @@
+---
+title: "Tips"
+order: 10
+toc: true
+---
+
+## Intro
+
+Analyzing the tips dataset
+
+```{r}
+#| label: setup
+knitr::opts_chunk$set(message = FALSE,warning = FALSE)
+library(tidyverse)
+library(mosaic)
+library(skimr)
+library(crosstable)
+library(ggformula)
+```
+
+## Read Data
+
+```{r}
+tips <- readxl::read_xlsx("../../data/I will eat my tip, thank you..xlsx")
+tips
+```
+
+## Munging
+
+```{r}
+tips_modified <- tips %>%
+  mutate(Gender = as_factor(Gender),
+         Preferance = as_factor(Preferance))
+```
+
+```{r}
+tips_modified %>% 
+  crosstable(Tip ~ Preferance) %>% 
+  as_flextable()
+```
+
+```{r}
+tips_modified %>% 
+  gf_density(~ Tip | Preferance, fill = ~ Preferance,
+             colour = ~ Preferance, alpha = 0.3) %>% 
+  gf_fitdistr(dist = "norm") %>% 
+  gf_refine(theme_classic())
+
+obs_mean_diff = diffmean(Tip ~ Preferance, data = tips_modified)
+obs_mean_diff
+```
+
+Not really Gaussian.
+
+## Shapiro Test
+
+```{r}
+
+shapiro.test(tips_modified %>% 
+               filter(Preferance == "Veg") %>% 
+               select(Tip) %>%  
+               as_vector()) # Can't handle even single col data frame
+
+shapiro.test(tips_modified %>% 
+               filter(Preferance == "Non-veg") %>% 
+               select(Tip) %>%  
+               as_vector()) # Can't handle even single col data frame
+```
+
+Neither of the `Tip` sub-variables are normal. So `t-test` won't really work, but still.
+
+## Inference
+
+### t-test
+
+```{r}
+mosaic::t_test(Tip ~ Preferance, data = tips_modified) %>% 
+  broom::tidy()
+
+mosaic::t_test(Tip ~ Preferance, data = tips_modified) %>% 
+  broom::tidy() %>% 
+  gf_errorbar(conf.low + conf.high ~ "Food Preference", data = ., width = 0.1) %>% 
+  gf_point(estimate ~ "Food Preference") %>% 
+  gf_hline(yintercept = 0, linetype = "dashed") %>% 
+  gf_refine(coord_flip()) %>% 
+  gf_theme(theme_classic())
+```
+
+### Wilcoxon Test
+
+```{r}
+wilcox.test(Tip ~ Preferance, data = tips_modified) %>% 
+  broom::tidy()
+
+
+```
+
+`p.value` in both cases is way to high for us to reject the NULL Hypothesis that there is no difference between Veggies and Non-Veggies in their tip size.
+
+### Permutation Test
+
+Just for kicks, a permutation test
+
+```{r}
+null_dist <- do(4999) * diffmean(Tip ~ shuffle(Preferance), data = tips_modified)
+head(null_dist)
+
+gf_histogram(~ diffmean, data = null_dist) %>% 
+  gf_vline(xintercept = ~ obs_mean_diff, color = "red") %>% 
+  gf_theme(theme_classic())
+prop(null_dist$diffmean <= obs_mean_diff)
+
+```

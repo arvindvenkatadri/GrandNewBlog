@@ -1,0 +1,138 @@
+---
+title: "Cartoons"
+order: 40
+---
+
+## Intro
+
+Analyzing the cartoon dataset
+
+```{r}
+#| label: setup
+knitr::opts_chunk$set(message = FALSE)
+library(tidyverse)
+library(mosaic)
+library(skimr)
+library(crosstable)
+library(ggformula)
+library(supernova)
+```
+
+## Read Data
+
+```{r}
+cartoon <- readxl::read_xlsx("../../data/Chhota Bheem vs Doraemon vs Dragon Tales.xlsx")
+cartoon
+```
+
+## Munging
+
+```{r}
+cartoon_modified <- cartoon %>%
+  mutate(Gender = as_factor(Gender),
+         Cartoob = as_factor(Cartoon))
+```
+
+```{r}
+cartoon_modified %>% 
+  crosstable(Rating ~ Cartoon + Gender) %>% 
+  as_flextable()
+```
+
+```{r}
+cartoon_modified %>% 
+  gf_density(~ Rating | Cartoon,
+             colour = ~ Cartoon, fill = ~ Cartoon, alpha = 0.3) %>% 
+  gf_fitdistr(dist = "norm") %>% 
+  gf_refine(theme_classic())
+
+cartoon_modified %>% 
+  group_by(Cartoon) %>% 
+  summarize (mean_rating = mean(Rating))
+             
+```
+
+Not really Gaussian? Some look ok!!
+
+## Shapiro Test
+
+```{r}
+
+shapiro.test(cartoon_modified %>% 
+               filter(Cartoon == "Chota Bheem") %>% 
+               select(Rating) %>%  
+               as_vector()) # Can't handle even single col data frame
+
+shapiro.test(cartoon_modified %>% 
+               filter(Cartoon == "Doraemon") %>% 
+               select(Rating) %>%  
+               as_vector()) # Can't handle even single col data frame
+
+shapiro.test(cartoon_modified %>% 
+               filter(Cartoon == "Dragon Tales") %>% 
+               select(Rating) %>%  
+               as_vector()) # Can't handle even single col data frame
+
+```
+
+Chhota Bheem Ratings are normal!! But the others aren't!! India is India!
+
+## Inference
+
+### ANOVA
+
+```{r}
+anova_model <- aov(Rating ~ Cartoon, data = cartoon_modified) 
+
+anova_model %>% 
+  supernova::supernova()
+
+```
+
+ANOVA says the reduction in error Sum of Squares is merely 6.97! The `p.value` is $0.4028$ so unlikely that the shows are different in mean rating!
+
+```{r}
+TukeyHSD(anova_model) %>% broom::tidy()
+
+TukeyHSD(anova_model) %>% 
+  broom::tidy() %>% 
+  gf_errorbar(conf.low + conf.high ~ contrast, color = ~ contrast, width = 0.2, linewidth = 1) %>% 
+  gf_point(estimate ~ contrast) %>% 
+  gf_hline(yintercept = 0, linetype = "dashed") %>% 
+  gf_theme(theme_classic()) %>% 
+  gf_refine(coord_flip())
+
+###
+
+TukeyHSD(anova_model) %>% 
+  ggiraphExtra::ggHSD() %>% 
+  gf_theme(theme_classic()) %>% 
+  gf_theme(theme(axis.text.y = element_text(size = 8, angle = 0)))
+
+```
+
+All confidence intervals straddle 0 so there is no difference in mean score across the Cartoons
+
+### Permutation Test
+
+Just for kicks, a permutation test
+
+```{r}
+
+F_stat <- anova_model %>% 
+  supernova::supernova() %>%  pluck(1,6,1) # OK, the F-Statistic
+F_stat
+##
+
+  
+perm_anova_dist <- do(4999) * aov(Rating ~ shuffle(Cartoon), data = cartoon_modified) %>% supernova() %>% pluck(1,6,1)  
+
+head(perm_anova_dist)
+
+gf_histogram(~ result, data = perm_anova_dist) %>% 
+  gf_vline(xintercept = ~ F_stat, color = "red") %>% 
+  gf_theme(theme_classic())
+prop(perm_anova_dist$diffmean <=F_stat)
+```
+
+Again the null distribution from permutations staddles the observed mean difference and hence we cannot reject the NULL Hypothesis that there is no difference between Male and Female pocket moneys.
