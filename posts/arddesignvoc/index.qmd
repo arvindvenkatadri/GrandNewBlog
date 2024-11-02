@@ -88,19 +88,25 @@ Nothing in SMI is normal, folks.
 ### ANOVA
 
 ```{r}
+## Set Theme
+theme_set(theme_classic())
+##
 anova_model <- aov(Score ~ Degree, data = Degree_modified) 
 
 anova_model %>% 
   supernova::supernova()
 
-
+supernova::pairwise(anova_model, correction = "Tukey", 
+                    alpha = 0.05, 
+                    var_equal = FALSE,
+                    plot = TRUE)
 
 ```
 
-ANOVA says the reduction in error Sum of Squares is merely 9.429! The `p.value` is $0.02028$ so there **is** a significant difference in mean academic scores across the three degree awards. The Significance score is a **single star** so this is also not too great a difference.
+Trying a couple of more plots:
 
 ```{r}
-TukeyHSD(anova_model) %>% broom::tidy()
+TukeyHSD(anova_model,conf.level = 0.95) %>% broom::tidy()
 
 TukeyHSD(anova_model) %>% 
   broom::tidy() %>% 
@@ -118,8 +124,16 @@ TukeyHSD(anova_model) %>%
   gf_theme(theme(axis.text.y = element_text(size = 8, angle = 0)))
 
 ```
+ANOVA says the reduction in error Sum of Squares is merely 9.429! The `p.value` is $0.0239$ so there **is** a significant difference in mean academic scores across the three degree awards. The Significance score is a **single star** so this is also not too significant a difference.
 
 There seems to be a significant difference between B.Des and B.FA. Poor saps who are doing art. Isn't Design always easier to assess?
+
+Let us state the model equation using `supernova`:
+
+```{r}
+supernova::equation(anova_model)
+
+```
 
 ### Permutation Test
 
