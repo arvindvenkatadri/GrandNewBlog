@@ -26,6 +26,7 @@ format:
     monofont: Fira Code
     code-block-border-left: "black"
     code-block-bg: "#E7FBFE"
+    code-link: TRUE
     df-print: paged
     fig-align: center
     fig-cap-location: bottom

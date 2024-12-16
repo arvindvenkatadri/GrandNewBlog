@@ -98,7 +98,7 @@ anova_model %>%
 
 supernova::pairwise(anova_model, correction = "Tukey", 
                     alpha = 0.05, 
-                    var_equal = FALSE,
+                    var_equal = TRUE,
                     plot = TRUE)
 
 ```
